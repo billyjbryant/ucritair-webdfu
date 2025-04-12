@@ -1,6 +1,7 @@
 {
   "name": "ucritair-webdfu",
-  "version": "0.0.1",
+  "version": "0.1.0",
+  "private": true,
   "description": "A web firmware updater for the uCritAir handheld device",
   "main": "index.html",
   "repository": {
@@ -14,10 +15,20 @@
     "updater"
   ],
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "serve": "npx serve --ssl-key ./cert/localhost-key.pem --ssl-cert ./cert/localhost.pem",
-    "start": "npm run serve"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
   },
   "author": "uCritAir",
-  "license": "ISC"
+  "license": "ISC",
+  "dependencies": {
+    "@material/web": "^2.3.0",
+    "dfu": "^0.1.5",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^3.0.0",
+    "vite": "^4.0.0"
+  }
 }

@@ -1,116 +1,113 @@
-body
-{
-	background-color: white;
-	color: black;
+@import url('https://fonts.googleapis.com/css2?family=Roboto%20Mono:wght@400;500;700&display=swap');
 
-	font-family: helvetica;
-
-	text-align: left;
-	margin: auto;
-
-	max-width: 8in;
+:root {
+  --md-ref-typeface-brand: 'Roboto Mono';
+  --md-ref-typeface-plain: 'Roboto Mono';
+  --md-sys-color-primary: #007bee;
+  --md-sys-color-on-primary: #ffffff;
+  --md-sys-color-primary-container: #1a578f;
+  --md-sys-color-on-primary-container: #ffffff;
+  --md-sys-color-secondary: #65ace6;
+  --md-filled-button-container-shape: 8px;
+  --md-filled-button-container-color-ripple: #4870cd;
+  --md-filled-button-container-color-disabled: rgb(0, 60, 115);
+  --md-filled-button-container-disabled-text-color: #a6c3df;
+  --md-filled-text-field-container-shape: 8px;
+  --md-filled-text-field-container-color: #1a578f;
+  --md-filled-text-field-container-color-ripple: #4870cd;
+  --md-filled-text-field-container-color-focus: #1a578f;
+  --md-filled-text-field-container-color-hover: #1a578f;
+  --md-filled-text-field-container-color-disabled: #4e657b;
+  --md-filled-text-field-container-text-color: #f5f9fd;
+  --md-filled-text-field-container-text-color-focus: #f5f9fd;
+  --md-filled-text-field-label-text-color: #a6c3df;
+  --md-filled-text-field-label-text-color-focus: #a6c3df;
+  --md-filled-text-field-label-text-color-disabled: #a6c3df;
+  --md-filled-text-field-label-text-color-hover: #a6c3df;
+  --md-filled-text-field-input-text-color: #f5f9fd;
+  --md-filled-text-field-input-text-color-focus: #f5f9fd;
+  --md-filled-text-field-input-text-color-disabled: #f5f9fd;
+  --md-filled-text-field-input-text-color-hover: #f5f9fd;
+  --md-filled-text-field-input-text-color-placeholder: #a6c3df;
+  --md-filled-text-field-input-text-color-placeholder-focus: #a6c3df;
+  --md-filled-text-field-input-text-color-placeholder-disabled: #a6c3df;
+  --md-filled-text-field-input-text-color-placeholder-hover: #a6c3df;
+  --md-outlined-text-field-container-color: #1a578f;
+  --md-outlined-text-field-container-color-ripple: #4870cd;
 }
 
-h1
-{
-	font-size: 36pt;
-	margin-bottom: 2pt;
+body {
+  font-family: 'Roboto Mono', monospace;
+  background-color: #072848;
+  color: #d5d5e8;
+  margin: 0;
 }
 
-h2
-{
-	font-size: 24pt;
-	margin-bottom: 2pt;
+.navbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  margin-bottom: 16px;
 }
 
-h3
-{
-	font-size: 16pt;
-	margin-bottom: 2pt;
+.navbar-brand {
+  font-size: 24px;
+  padding: 8px;
+  margin-right: 16px;
+  color: var(--md-sys-color-primary);
 }
 
-p
-{
-	font-size: 14pt;
+.navbar-brand img {
+  height: 50px;
+  padding: 8px;
 }
 
-.title
-{
-	font-size: 48pt;
-	font-weight: bold;
-	text-decoration: none;
-	color: black;
-	margin-bottom: 8pt;
+.navbar-text {
+  font-size: 24px;
+  font-weight: 700;
 }
 
-.line
-{
-  	height: 0;
-  	border: 2pt solid rgb(126, 126, 126);
-	border-radius: 2pt;
-	margin-bottom: 16pt;
+.layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  max-width: 800px;
 }
 
-a
-{
-	font-size: 14pt;
-	color: rgb(92, 92, 92);
-	text-decoration: none;
-	line-height: 16pt;
+.flex-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px; /* Material spacing token */
+  height: 100vh;
+  padding: 16px; /* Consistent with MD spacing */
 }
 
-a:not(.title):hover
-{
-	font-size: 16pt;
-	color: black;
+.row {
+  max-width: 800px; /* Keeps things from getting too stretched */
+  margin-bottom: 16px; /* Space between sections */
 }
 
-label, legend, fieldset
-{
-	font-size: 16pt;
-	font-weight: bold;
-	display: block;
-	margin-bottom: 2pt;
+.col {
+  gap: 16px; /* Material spacing token */
 }
 
-textarea, select, input[type]
-{
-	color: #000000;
-	padding: 4px 6px;
-	background-color: #e5e5e5;
-	border: 1px solid #e5e5e5;
-	border-radius: 0px;
-	box-shadow: none;
-	box-sizing: border-box;
-	margin-bottom: 12px;
-}
-textarea:focus, select:focus, input[type]:focus
-{
-	border: 1px solid #808080;
-	outline: 0;
+.infobox,
+.status,
+.log {
+  width: 45vw;
+  overflow: hidden;
+  margin-bottom: 10px;
+  box-shadow: var(--md-elevation-level2);
 }
 
-.button, button, input[type="submit"], input[type="reset"], input[type="button"]
-{
-	display: inline-block;
-	padding: 4px 6px;
-	text-align: center;
-	white-space: nowrap;
-	background-color: #ffffff;
-	color: #000000;
-	border-radius: 1px;
-	border: 1px solid #000000;
-}
-.button[disabled], button[disabled], input[type="submit"][disabled], input[type="reset"][disabled], input[type="button"][disabled]
-{
-	cursor: default;
-	opacity: .5;
-}
-.button:focus, .button:hover, button:focus, button:hover, input[type="submit"]:focus, input[type="submit"]:hover, input[type="reset"]:focus, input[type="reset"]:hover, input[type="button"]:focus, input[type="button"]:hover
-{
-	background-color: #000000;
-	border-color: #000000;
-	color: #ffffff;
-	outline: 0;
+.button {
+  height: 50px;
+  margin-top: 4px; /* Space above button */
 }
 
+.button:disabled {
+  background-color: var(--md-filled-button-container-color-disabled);
+  color: #a6c3df !important;
+}

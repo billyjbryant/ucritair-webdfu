@@ -1,0 +1,15 @@
+:root {
+  --primary:rgb(0, 99, 192);
+  --secondary: #65ace6;
+  --success: #28a745;
+  --info: #17a2b8;
+  --warning: #ffc107;
+  --danger: #dc3545;
+  --light: #f8f9fa;
+  --dark:rgb(18, 81, 144);
+}
+
+body {
+  background-color: #072848;
+  color: #d5d5e8;
+}

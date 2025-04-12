@@ -4,10 +4,17 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ucritair WebDFU</title>
+    <link
+      rel="stylesheet"
+      href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"
+    />
+    <link rel="stylesheet" href="./custom-bootstrap.css" />
     <link
       rel="stylesheet"
       href="https://fonts.googleapis.com/icon?family=Material+Icons"
     />
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script type="importmap">
       {
         "imports": {
@@ -21,155 +28,18 @@
 
       document.adoptedStyleSheets.push(typescaleStyles.styleSheet);
     </script>
-    <title>μCritAir Web Firmware Updater</title>
-    <script src="./dfu-utils/dfu.js"></script>
-    <script src="./dfu-utils/dfuse.js"></script>
-    <script src="./dfu-utils/FileSaver.js"></script>
-    <script src="./dfu-utils/dfu-util.js"></script>
+    <link rel="stylesheet" href="./index.css" />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap"
+    />
   </head>
 
   <body>
-    <style>
-      @import url('https://fonts.googleapis.com/css2?family=Roboto%20Mono:wght@400;500;700&display=swap');
-
-      :root {
-        --md-ref-typeface-brand: 'Roboto Mono';
-        --md-ref-typeface-plain: 'Roboto Mono';
-        --md-sys-color-primary: #007bee;
-        --md-sys-color-on-primary: #ffffff;
-        --md-sys-color-primary-container: #1a578f;
-        --md-sys-color-on-primary-container: #ffffff;
-        --md-sys-color-secondary: #03dac6;
-        --md-sys-color-on-secondary: #000000;
-        --md-sys-color-background: rgb(0, 7, 50);
-        --md-sys-color-on-background: #ffffff;
-        --md-filled-button-container-shape: 8px;
-        --md-filled-button-container-color-ripple: #4870cd;
-        --md-filled-text-field-container-color: #1a578f;
-        --md-filled-text-field-container-color-ripple: #4870cd;
-        --md-filled-text-field-container-color-focus: #1a578f;
-        --md-filled-text-field-container-color-hover: #1a578f;
-        --md-filled-text-field-container-color-disabled: #1a578f;
-        --md-filled-text-field-label-text-color: #1a578f;
-        --md-filled-text-field-input-text-color: #1a578f;
-      }
-
-      .infobox {
-        width: 30vw;
-        overflow: hidden;
-      }
-    </style>
-    <div class="container">
-      <h3 class="">μCritAir Web Firmware Updater</h3>
-      <p class="">
-        Welcome to the μCritAir Web Firmware Updater.<br />
-        This tool allows you to update the firmware on your μCritter hardware.
-      </p>
-      <div class="row text-center">
-        <div class="col s10">
-          <md-outlined-text-field
-            aria-label="Connection status"
-            label="Status"
-            type="text"
-            id="status"
-            disabled
-          ></md-outlined-text-field>
-          <md-filled-button
-            id="connect"
-            aria-label="Connect to device"
-            has-icon="true"
-          >
-            <i slot="icon" class="material-icons">usb</i>Connect
-          </md-filled-button>
-        </div>
-      </div>
-      <div class="row m4 p4">
-        <div class="col s12">
-          <md-filled-text-field
-            type="textarea"
-            label="Device Info"
-            id="usbInfo"
-            rows="5"
-            class="infobox"
-            readOnly
-          ></md-filled-text-field>
-          <md-filled-text-field
-            type="textarea"
-            label="Firmware Info"
-            id="dfuInfo"
-            rows="5"
-            class="infobox"
-            readOnly
-          ></md-filled-text-field>
-        </div>
-      </div>
-      <div class="row">
-        <div class="col s12">
-          <form id="configForm">
-            <div id="dfuseFields" hidden="true">
-              <div class="mdc-text-field">
-                <input
-                  type="text"
-                  name="dfuseStartAddress"
-                  id="dfuseStartAddress"
-                  pattern="0x[A-Fa-f0-9]+"
-                  class="mdc-text-field__input"
-                />
-                <label for="dfuseStartAddress" class="mdc-floating-label"
-                  >DfuSe Start Address</label
-                >
-                <div class="mdc-line-ripple"></div>
-              </div>
-              <div class="mdc-text-field">
-                <input
-                  type="number"
-                  name="dfuseUploadSize"
-                  id="dfuseUploadSize"
-                  min="1"
-                  class="mdc-text-field__input"
-                />
-                <label for="dfuseUploadSize" class="mdc-floating-label"
-                  >DfuSe Upload Size</label
-                >
-                <div class="mdc-line-ripple"></div>
-              </div>
-            </div>
-            <fieldset>
-              <legend>DFU mode</legend>
-              <fieldset>
-                <legend>Firmware Download (write to USB device)</legend>
-                <div class="col s12 center-align">
-                  <md-filled-button
-                    id="download"
-                    aria-label="Download firmware"
-                    has-icon="true"
-                    disabled
-                  >
-                    <i slot="icon" class="material-icons">file_download</i
-                    >Download
-                  </md-filled-button>
-                </div>
-                <div class="log" id="downloadLog"></div>
-              </fieldset>
-            </fieldset>
-          </form>
-        </div>
-      </div>
-      <div class="row">
-        <div class="col s12">
-          <h5>Links</h5>
-          <ul>
-            <li>
-              <a href="https://docs.ucritter.com">[ μCritAir Documentation ]</a>
-            </li>
-            <li>
-              <a href="https://github.com/ucritair/ucritair-firmware"
-                >[ μCritAir Firmware ]</a
-              >
-            </li>
-          </ul>
-        </div>
-      </div>
-    </div>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.1/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
   </body>
 </html>
