@@ -1,88 +1,701 @@
 <!DOCTYPE html>
 
 <html lang="en">
-	<head>
-		<meta charset="UTF-8">
-		<link rel="stylesheet" href="index.css">
-		
-		<title>μCritAir WebDFU</title>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="index.css" />
+    <title>μCritAir WebDFU</title>
 
-		<script src="dfu.js"></script>
-		<script src="dfuse.js"></script>
-		<script src="FileSaver.js"></script>
-		<script src="dfu-util.js"></script>
-	</head>
+    <script src="dfu.js"></script>
+    <script src="dfuse.js"></script>
+    <script src="FileSaver.js"></script>
+    <script src="dfu-util.js"></script>
+    <script>
+      // Global variables
+      let device = null;
+      let firmwareFile = null;
+      let transferSize = 1024;
+      let manifestationTolerant = true;
+      let interfaceDialog = null;
+      let interfaceForm = null;
 
-	<body>
-		<p>
-			<span id="status"></span>
-		</p>
+      // Load the firmware when the page loads
+      document.addEventListener('DOMContentLoaded', function () {
+        // Reference elements
+        interfaceDialog = document.getElementById('interfaceDialog');
+        interfaceForm = document.getElementById('interfaceForm');
+        const statusDisplay = document.getElementById('status-display');
+        const connectBtn = document.getElementById('connect-btn');
+        const logElement = document.getElementById('download-log');
 
-		<!-- <label for="vid">Vendor ID (hex):</label>
-		<input list="vendor_ids" type="text" name="vid" id="vid" maxlength="6" size="8" pattern="0x[A-Fa-f0-9]{1,4}"/>
-		<datalist id="vendor_ids">
-			<option value="0x1209">dapboot DFU bootloader</option>
-			<option value="0x0D28">mbed DAPLink</option>
-			<option value="0x1EAF">LeafLabs Maple/stm32duino bootloader</option>
-		</datalist>
-		<br> -->
-		<button id="connect">Connect</button>
-		
-		<!-- <dialog id="interfaceDialog">
-			Your device has multiple DFU interfaces. Select one from the list below:
-			<form id="interfaceForm" method="dialog">
-				<button id="selectInterface" type="submit">Select interface</button>
-			</form>
-		</dialog> -->
+        // Set up logging
+        setLogContext(logElement);
 
-		<p>
-			<div id="usbInfo" style="white-space: pre"></div>
-			<div id="dfuInfo" style="white-space: pre"></div>
-		</p>
+        // Load the firmware
+        fetch('./public/uCritAir-Eclipse-v74.signed.bin')
+          .then((response) => response.blob())
+          .then((blob) => {
+            const reader = new FileReader();
+            reader.onload = function () {
+              firmwareFile = reader.result;
+              statusDisplay.textContent =
+                'Firmware loaded. Ready to update your device.';
+              connectBtn.disabled = false;
+              connectBtn.textContent = 'Update Firmware';
+            };
+            reader.onerror = function () {
+              statusDisplay.textContent = 'Failed to load firmware file.';
+              connectBtn.disabled = true;
+            };
+            reader.readAsArrayBuffer(blob);
+          })
+          .catch((error) => {
+            statusDisplay.textContent =
+              'Failed to load firmware file: ' + error;
+            connectBtn.disabled = true;
+          });
 
-		<!-- <fieldset>
-			<legend>Runtime mode</legend>
-			<button id="detach" disabled="true">Detach DFU</button>
-		</fieldset> -->
+        // Set up button
+        connectBtn.addEventListener('click', handleConnectAndUpdateClick);
 
-		<fieldset>
-			<form id="configForm">
-				<!-- <label for="transferSize">Transfer Size:</label>
-				<input type="number" name="transferSize" id="transferSize" value="1024"/> -->
-				<div id="dfuseFields" hidden="true">
-					<label for="dfuseStartAddress">DfuSe Start Address:</label>
-					<input type="text" name="dfuseStartAddress" id="dfuseStartAddress" title="Initial memory address to read/write from (hex)" size="10" pattern="0x[A-Fa-f0-9]+"/>
-					<label for="dfuseUploadSize">DfuSe Upload Size:</label>
-					<input type="number" name="dfuseUploadSize" id="dfuseUploadSize" min="1"/>
-				</div>
-			
-				<legend>DFU mode</legend>
-				<fieldset>
-					<legend>Firmware Download (write to USB device)</legend>
-					<!-- <p>
-						<input type="file" id="firmwareFile" name="file" disabled="true"/>
-					</p> -->
-					<p>
-						<button id="download" disabled="true">Download</button>
-					</p>
-					<div class="log" id="downloadLog"></div>
-				</fieldset>
+        // Check WebUSB support
+        if (typeof navigator.usb === 'undefined') {
+          statusDisplay.textContent =
+            'WebUSB is not supported in this browser. Please use Chrome or Edge.';
+          connectBtn.disabled = true;
+        }
 
-				<!-- <fieldset>
-					<legend>Firmware Upload (read from USB device)</legend>
-					<p>
-						<button id="upload" disabled="true">Upload</button>
-					</p>
-					<div class="log" id="uploadLog"></div>
-				</fieldset> -->
-			</form>
-		</fieldset>
-		<br>
-		
-		<h3>Links</h3>
-		<a href="https://docs.ucritter.com">[ μCritAir Documentation ]</a>
-		<br>
-		<a href="https://github.com/ucritair/ucritair-firmware">[ μCritAir Firmware ]</a>
-		<br>
-	</body>
+        // Handle USB disconnects
+        navigator.usb.addEventListener('disconnect', handleDisconnect);
+      });
+
+      // Handle connect button click
+      async function handleConnectClick() {
+        const connectBtn = document.getElementById('connect-btn');
+        const statusDisplay = document.getElementById('status-display');
+        const deviceInfo = document.getElementById('device-info');
+
+        if (device) {
+          // Disconnect existing device
+          try {
+            await device.close();
+            device = null;
+            connectBtn.textContent = 'Connect Device';
+            statusDisplay.textContent = 'Device disconnected';
+            deviceInfo.innerHTML = '';
+            document.getElementById('update-btn').disabled = false;
+            return;
+          } catch (error) {
+            statusDisplay.textContent = 'Error disconnecting: ' + error;
+            return;
+          }
+        }
+
+        try {
+          // Connect to device
+          statusDisplay.textContent = 'Select your μCritAir device...';
+          const selectedDevice = await navigator.usb.requestDevice({
+            filters: [{ vendorId: 0x2fe3 }], // μCritAir vendor ID
+          });
+
+          // Find DFU interfaces
+          const interfaces = dfu.findDeviceDfuInterfaces(selectedDevice);
+          if (interfaces.length === 0) {
+            statusDisplay.textContent =
+              'No DFU interfaces found on selected device.';
+            return;
+          }
+
+          // Fix interface names
+          await fixInterfaceNames(selectedDevice, interfaces);
+
+          if (interfaces.length === 1) {
+            // Single interface
+            device = new dfu.Device(selectedDevice, interfaces[0]);
+            await connectToDevice(device);
+          } else {
+            // Multiple interfaces
+            populateInterfaceList(interfaceForm, selectedDevice, interfaces);
+
+            interfaceForm.onsubmit = async function (event) {
+              event.preventDefault();
+              const index = interfaceForm.elements['interfaceIndex'].value;
+              device = new dfu.Device(selectedDevice, interfaces[index]);
+              await connectToDevice(device);
+              interfaceDialog.close();
+            };
+
+            interfaceDialog.showModal();
+          }
+        } catch (error) {
+          if (error.name !== 'NotFoundError') {
+            statusDisplay.textContent = 'Error connecting: ' + error;
+          }
+        }
+      }
+
+      // Connect to the selected device
+      async function connectToDevice(device) {
+        const connectBtn = document.getElementById('connect-btn');
+        const statusDisplay = document.getElementById('status-display');
+        const deviceInfo = document.getElementById('device-info');
+
+        try {
+          // Open the device
+          try {
+            await device.open();
+          } catch (error) {
+            // Check if this is likely because the device is not in DFU mode
+            if (
+              error
+                .toString()
+                .includes("Failed to execute 'controlTransferIn'") ||
+              error.toString().includes('A transfer error has occurred') ||
+              error
+                .toString()
+                .includes("NetworkError: Failed to execute 'controlTransferIn'")
+            ) {
+              logWarning(
+                'Device appears to not be in DFU mode. Will attempt to switch modes.'
+              );
+              statusDisplay.textContent =
+                'Device not in DFU mode. Will attempt to switch to DFU mode.';
+
+              // Attempt to switch to DFU mode
+              try {
+                await device.detach();
+                logInfo(
+                  'DFU mode switch command sent. Waiting for device to reconnect...'
+                );
+                await device.close();
+
+                // Return a special indicator that we need to reconnect in DFU mode
+                return { needsDfuReconnect: true };
+              } catch (detachError) {
+                throw new Error(`Could not switch to DFU mode: ${detachError}`);
+              }
+            } else {
+              throw error; // Rethrow other errors
+            }
+          }
+
+          // Get DFU descriptor properties
+          let desc = {};
+          try {
+            desc = await getDFUDescriptorProperties(device);
+            if (desc && Object.keys(desc).length > 0) {
+              device.properties = desc;
+              transferSize = desc.TransferSize || 1024;
+              manifestationTolerant = desc.ManifestationTolerant;
+            }
+          } catch (error) {
+            logWarning('Could not read DFU descriptor: ' + error);
+          }
+
+          // Bind logging methods
+          device.logDebug = logDebug;
+          device.logInfo = logInfo;
+          device.logWarning = logWarning;
+          device.logError = logError;
+          device.logProgress = logProgress;
+
+          // Update UI
+          connectBtn.textContent = 'Disconnect';
+          statusDisplay.textContent = 'Connected to device';
+          deviceInfo.innerHTML = `<div class="info-item"><span>Name:</span> ${
+            device.device_.productName || 'Unknown'
+          }</div>
+						 <div class="info-item"><span>Manufacturer:</span> ${
+               device.device_.manufacturerName || 'Unknown'
+             }</div>
+						 <div class="info-item"><span>Serial:</span> ${
+               device.device_.serialNumber || 'Unknown'
+             }</div>`;
+
+          // Check if in DFU mode
+          const isDfuMode = device.settings.alternate.interfaceProtocol == 0x02;
+          if (!isDfuMode) {
+            deviceInfo.innerHTML += `<div class="warning">Device is in application mode. You need to switch it to DFU mode before updating.</div>`;
+            document.getElementById('update-btn').disabled = true;
+          } else {
+            document.getElementById('update-btn').disabled = false;
+          }
+
+          return device;
+        } catch (error) {
+          statusDisplay.textContent = 'Error connecting: ' + error;
+          throw error;
+        }
+      }
+
+      // Handle update button click
+      async function handleUpdateClick() {
+        const statusDisplay = document.getElementById('status-display');
+        const updateBtn = document.getElementById('update-btn');
+        const logElement = document.getElementById('download-log');
+
+        // Clear log and disable button
+        clearLog(logElement);
+        updateBtn.disabled = true;
+
+        if (!device) {
+          // Try connecting first
+          statusDisplay.textContent = 'Please connect a device first';
+          updateBtn.disabled = false;
+          return;
+        }
+
+        if (!firmwareFile) {
+          statusDisplay.textContent = 'Firmware file not loaded';
+          updateBtn.disabled = false;
+          return;
+        }
+
+        try {
+          // Check if in DFU mode
+          const isDfuMode = device.settings.alternate.interfaceProtocol == 0x02;
+
+          if (!isDfuMode) {
+            // Switch to DFU mode
+            logInfo('Device is in application mode. Switching to DFU mode...');
+            try {
+              await device.detach();
+              logInfo(
+                'DFU mode switch command sent. Device will disconnect and reconnect in DFU mode.'
+              );
+              logInfo(
+                'Please connect again when the device reconnects in DFU mode.'
+              );
+              await device.close();
+              device = null;
+              document.getElementById('connect-btn').textContent =
+                'Connect Device';
+              updateBtn.disabled = false;
+              return;
+            } catch (error) {
+              logError('Failed to switch to DFU mode: ' + error);
+              updateBtn.disabled = false;
+              return;
+            }
+          }
+
+          // Perform the update
+          logInfo('Starting firmware update...');
+
+          // Clear any existing error state
+          let status = await device.getStatus();
+          if (status.state == dfu.dfuERROR) {
+            await device.clearStatus();
+          }
+
+          // Do the download
+          await device.do_download(
+            transferSize,
+            firmwareFile,
+            manifestationTolerant
+          );
+          logInfo('✅ Firmware update successful!');
+          statusDisplay.textContent = 'Firmware updated successfully';
+
+          if (!manifestationTolerant) {
+            logInfo('Device will reset and disconnect...');
+            try {
+              await device.waitDisconnected(5000);
+              logInfo(
+                'Device disconnected and is now running the new firmware.'
+              );
+              device = null;
+              document.getElementById('connect-btn').textContent =
+                'Connect Device';
+            } catch (error) {
+              logInfo('Note: Device remained connected after update.');
+            }
+          }
+        } catch (error) {
+          logError('❌ Firmware update failed: ' + error);
+          statusDisplay.textContent = 'Update failed';
+        } finally {
+          updateBtn.disabled = false;
+        }
+      }
+
+      // Handle device disconnect
+      function handleDisconnect(event) {
+        if (device && device.device_ === event.device) {
+          logInfo('Device was disconnected');
+          device = null;
+          document.getElementById('connect-btn').textContent = 'Connect Device';
+          document.getElementById('status-display').textContent =
+            'Device disconnected';
+          document.getElementById('device-info').innerHTML = '';
+        }
+      }
+
+      // Handle connect and update button click
+      async function handleConnectAndUpdateClick() {
+        const connectBtn = document.getElementById('connect-btn');
+        const statusDisplay = document.getElementById('status-display');
+
+        connectBtn.disabled = true;
+
+        try {
+          // Connect to device if not already connected
+          if (!device) {
+            try {
+              // Connect to device
+              statusDisplay.textContent = 'Select your μCritAir device...';
+              const selectedDevice = await navigator.usb.requestDevice({
+                filters: [{ vendorId: 0x2fe3 }], // μCritAir vendor ID
+              });
+
+              // Find DFU interfaces
+              const interfaces = dfu.findDeviceDfuInterfaces(selectedDevice);
+              if (interfaces.length === 0) {
+                statusDisplay.textContent =
+                  'No DFU interfaces found on selected device.';
+                connectBtn.disabled = false;
+                return;
+              }
+
+              // Fix interface names
+              await fixInterfaceNames(selectedDevice, interfaces);
+
+              if (interfaces.length === 1) {
+                // Single interface
+                device = new dfu.Device(selectedDevice, interfaces[0]);
+                await connectToDevice(device);
+              } else {
+                // Multiple interfaces
+                populateInterfaceList(
+                  interfaceForm,
+                  selectedDevice,
+                  interfaces
+                );
+
+                return new Promise((resolve) => {
+                  interfaceForm.onsubmit = async function (event) {
+                    event.preventDefault();
+                    const index =
+                      interfaceForm.elements['interfaceIndex'].value;
+                    device = new dfu.Device(selectedDevice, interfaces[index]);
+                    await connectToDevice(device);
+                    interfaceDialog.close();
+                    resolve();
+                    // Continue with update process
+                    continueWithUpdate();
+                  };
+
+                  interfaceDialog.showModal();
+                });
+              }
+            } catch (error) {
+              if (error.name !== 'NotFoundError') {
+                statusDisplay.textContent = 'Error connecting: ' + error;
+              }
+              connectBtn.disabled = false;
+              return;
+            }
+          }
+
+          // Continue with update process
+          await continueWithUpdate();
+        } catch (error) {
+          logError('Update process failed: ' + error);
+          connectBtn.disabled = false;
+        }
+      }
+
+      // Function to continue with update after connection
+      async function continueWithUpdate() {
+        const statusDisplay = document.getElementById('status-display');
+        const connectBtn = document.getElementById('connect-btn');
+        const logElement = document.getElementById('download-log');
+
+        // Clear log
+        clearLog(logElement);
+
+        if (!device) {
+          statusDisplay.textContent = 'No device connected';
+          connectBtn.disabled = false;
+          return;
+        }
+
+        if (!firmwareFile) {
+          statusDisplay.textContent = 'Firmware file not loaded';
+          connectBtn.disabled = false;
+          return;
+        }
+
+        try {
+          // Check if in DFU mode
+          const isDfuMode = device.settings.alternate.interfaceProtocol == 0x02;
+
+          if (!isDfuMode) {
+            // Switch to DFU mode
+            logInfo('Device is in application mode. Switching to DFU mode...');
+            try {
+              await device.detach();
+              logInfo(
+                'DFU mode switch command sent. Waiting for device to reconnect...'
+              );
+
+              // Close the current connection
+              await device.close();
+              device = null;
+
+              // Wait for device to disconnect and reconnect
+              statusDisplay.textContent =
+                'Waiting for device to reconnect in DFU mode...';
+
+              // Wait for a moment to allow device to reset
+              await new Promise((resolve) => setTimeout(resolve, 1000));
+
+              // Attempt to reconnect to device in DFU mode
+              await reconnectInDfuMode();
+
+              // If successfully reconnected, continue with update
+              return continueWithUpdate();
+            } catch (error) {
+              logError('Failed during DFU mode switch: ' + error);
+              connectBtn.disabled = false;
+              return;
+            }
+          }
+
+          // Perform the firmware update
+          logInfo('Starting firmware update...');
+          statusDisplay.textContent = 'Updating firmware...';
+
+          // Download firmware
+          await device.do_download(
+            transferSize,
+            firmwareFile,
+            manifestationTolerant
+          );
+
+          logInfo('Firmware update complete!');
+          statusDisplay.textContent = 'Firmware update successful!';
+
+          // Close connection after successful update
+          await device.close();
+          device = null;
+          connectBtn.textContent = 'Update Firmware';
+          connectBtn.disabled = false;
+        } catch (error) {
+          logError('Firmware update failed: ' + error);
+          statusDisplay.textContent = 'Update failed: ' + error;
+          connectBtn.disabled = false;
+
+          // Attempt to close the connection if there was an error
+          if (device) {
+            try {
+              await device.close();
+              device = null;
+            } catch (closeError) {
+              logError('Error closing device: ' + closeError);
+            }
+          }
+        }
+      }
+
+      // Function to reconnect to the device in DFU mode
+      async function reconnectInDfuMode(attempts = 5) {
+        const statusDisplay = document.getElementById('status-display');
+
+        for (let i = 0; i < attempts; i++) {
+          try {
+            logInfo(`Attempting to reconnect (${i + 1}/${attempts})...`);
+
+            // Get all connected devices
+            const devices = await navigator.usb.getDevices();
+
+            // Look for our DFU device
+            for (const usbDevice of devices) {
+              if (usbDevice.vendorId === 0x2fe3) {
+                // μCritAir vendor ID
+                const interfaces = dfu.findDeviceDfuInterfaces(usbDevice);
+
+                if (interfaces.length > 0) {
+                  // Find a DFU mode interface (protocol 0x02)
+                  const dfuInterface = interfaces.find(
+                    (iface) => iface.alternate.interfaceProtocol === 0x02
+                  );
+
+                  if (dfuInterface) {
+                    logInfo('Device reconnected in DFU mode');
+                    // Create new device instance and connect to it
+                    device = new dfu.Device(usbDevice, dfuInterface);
+                    await connectToDevice(device);
+                    statusDisplay.textContent =
+                      'Connected in DFU mode, continuing update...';
+                    return true; // Successfully reconnected
+                  }
+                }
+              }
+            }
+
+            // Wait before trying again
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+          } catch (error) {
+            logWarning(`Reconnection attempt ${i + 1} failed: ${error}`);
+            // Wait before trying again
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+          }
+        }
+
+        // If we reach here, reconnection failed
+        statusDisplay.textContent =
+          'Could not reconnect to device in DFU mode. Please try again.';
+        document.getElementById('connect-btn').disabled = false;
+        throw new Error('Failed to reconnect to device in DFU mode');
+      }
+
+      // Handle disconnect event
+      function handleDisconnect(event) {
+        if (device && event.device === device.device_) {
+          device = null;
+          document.getElementById('connect-btn').textContent = 'Connect Device';
+          document.getElementById('status-display').textContent =
+            'Device disconnected';
+          document.getElementById('device-info').innerHTML = '';
+        }
+      }
+
+      // Attempt to reconnect to a device in DFU mode
+      async function reconnectInDfuMode(originalDevice, maxRetries = 5) {
+        const statusDisplay = document.getElementById('status-display');
+        statusDisplay.textContent =
+          'Waiting for device to reconnect in DFU mode...';
+
+        // Wait for the device to disconnect and reconnect
+        let retryCount = 0;
+        let dfuDevices = [];
+
+        while (retryCount < maxRetries) {
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+          statusDisplay.textContent = `Searching for DFU device... (attempt ${
+            retryCount + 1
+          }/${maxRetries})`;
+
+          try {
+            // Look for all available DFU devices
+            dfuDevices = await dfu.findAllDfuInterfaces();
+
+            if (dfuDevices.length > 0) {
+              logInfo(`Found ${dfuDevices.length} DFU device(s)`);
+
+              // Try to find the same vendor/product ID if available
+              if (
+                originalDevice?.device_?.vendorId &&
+                originalDevice?.device_?.productId
+              ) {
+                const matchingDevice = dfuDevices.find(
+                  (d) =>
+                    d.device_.vendorId === originalDevice.device_.vendorId &&
+                    d.device_.productId === originalDevice.device_.productId
+                );
+
+                if (matchingDevice) {
+                  statusDisplay.textContent =
+                    'Reconnected to device in DFU mode!';
+                  return matchingDevice;
+                }
+              }
+
+              // If no exact match, just use the first DFU device found
+              statusDisplay.textContent = 'Reconnected to a DFU device!';
+              return dfuDevices[0];
+            }
+          } catch (error) {
+            logWarning(`Error searching for DFU devices: ${error}`);
+          }
+
+          retryCount++;
+        }
+
+        throw new Error(
+          'Could not reconnect to device in DFU mode after multiple attempts'
+        );
+      }
+    </script>
+  </head>
+
+  <body>
+    <div class="container">
+      <h1>μCritAir Firmware Updater</h1>
+      <div class="description">
+        <p>
+          This tool allows you to update the firmware on your μCritAir device
+          using a web browser. Click the "Update Firmware" button below to
+          connect to your device and install the latest firmware in one step.
+        </p>
+      </div>
+
+      <div class="status-container">
+        <div id="status-display">Loading firmware file...</div>
+      </div>
+
+      <div class="button-container">
+        <button id="connect-btn" class="button primary large">
+          Update Firmware
+        </button>
+      </div>
+
+      <div class="device-info-container">
+        <h3>Device Information</h3>
+        <div id="device-info"></div>
+      </div>
+
+      <div class="log-container">
+        <h3>Update Log</h3>
+        <div id="download-log" class="log"></div>
+      </div>
+
+      <dialog id="interfaceDialog">
+        <h3>Multiple DFU Interfaces Found</h3>
+        <p>Please select the interface to use:</p>
+        <form id="interfaceForm">
+          <!-- Interface options will be inserted here -->
+          <div class="button-container">
+            <button type="submit" class="button">Select</button>
+            <button
+              type="button"
+              class="button"
+              onclick="document.getElementById('interfaceDialog').close()"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      </dialog>
+
+      <div class="footer">
+        <p>Current firmware version: uCritAir-Eclipse-v74</p>
+        <p>
+          <a href="https://docs.ucritter.com" target="_blank">Documentation</a>
+          |
+          <a
+            href="https://github.com/ucritair/ucritair-firmware"
+            target="_blank"
+            >GitHub Repository</a
+          >
+        </p>
+      </div>
+
+      <!-- Hidden fields for DFUse configuration -->
+      <div style="display: none">
+        <form id="configForm">
+          <div id="dfuseFields" hidden="true">
+            <input
+              type="text"
+              name="dfuseStartAddress"
+              id="dfuseStartAddress"
+            />
+            <input type="number" name="dfuseUploadSize" id="dfuseUploadSize" />
+          </div>
+        </form>
+      </div>
+    </div>
+  </body>
 </html>
